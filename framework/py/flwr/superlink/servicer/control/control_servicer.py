@@ -74,6 +74,8 @@ from flwr.proto.control_pb2 import (  # pylint: disable=E0611
     StartRunResponse,
     StopRunRequest,
     StopRunResponse,
+    StreamEventsRequest,
+    StreamEventsResponse,
     StreamLogsRequest,
     StreamLogsResponse,
     UnregisterNodeRequest,
@@ -259,6 +261,52 @@ class ControlServicer(control_pb2_grpc.ControlServicer):
                 break
 
             time.sleep(LOG_STREAM_INTERVAL)  # Sleep briefly to avoid busy waiting
+
+    def StreamEvents(  # pylint: disable=C0103
+        self, request: StreamEventsRequest, context: grpc.ServicerContext
+    ) -> Generator[StreamEventsResponse, Any, None]:
+        """Stream training events in real-time."""
+        log(INFO, "ControlServicer.StreamEvents")
+        state = self.linkstate_factory.state()
+
+        # Retrieve run ID and run
+        run_id = request.run_id
+        run = state.get_run(run_id)
+
+        # Exit if `run_id` not found
+        if not run:
+            context.abort(grpc.StatusCode.NOT_FOUND, RUN_ID_NOT_FOUND_MESSAGE)
+
+        # Check if `flwr_aid` matches the run's `flwr_aid`
+        flwr_aid = get_current_account_info().flwr_aid
+        _check_flwr_aid_in_run(flwr_aid=flwr_aid, run=cast(Run, run), context=context)
+
+        # Import here to avoid circular dependency
+        from flwr.server.events import get_event_dispatcher
+
+        dispatcher = get_event_dispatcher()
+        queue = dispatcher.subscribe(run_id)
+
+        try:
+            while context.is_active():
+                # Get events from queue with timeout
+                events = dispatcher.get_events(run_id, queue, timeout=0.5)
+
+                if events:
+                    latest_timestamp = max(e.timestamp for e in events)
+                    yield StreamEventsResponse(
+                        events=events, latest_timestamp=latest_timestamp
+                    )
+
+                # Check if run is finished
+                run_status = state.get_run_status({run_id})[run_id]
+                if run_status.status == Status.FINISHED:
+                    log(INFO, "Run ID `%s` finished, ending event stream", run_id)
+                    break
+
+        finally:
+            # Unsubscribe when done
+            dispatcher.unsubscribe(run_id, queue)
 
     def ListRuns(
         self, request: ListRunsRequest, context: grpc.ServicerContext

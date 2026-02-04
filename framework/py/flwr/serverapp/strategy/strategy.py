@@ -22,10 +22,24 @@ from collections.abc import Callable, Iterable
 from logging import INFO
 
 from flwr.common import ArrayRecord, ConfigRecord, Message, MetricRecord, log
+from flwr.proto.event_pb2 import EventType
 from flwr.server import Grid
+from flwr.server.events import get_event_dispatcher
 
 from .result import Result
 from .strategy_utils import log_strategy_start_info
+
+
+def _extract_metrics(record: object) -> dict[str, str]:
+    """Extract numeric metrics from MetricRecord as strings."""
+    if not isinstance(record, dict):
+        return {}
+
+    return {
+        key: str(value)
+        for key, value in record.items()
+        if isinstance(value, (int, float))
+    }
 
 
 class Strategy(ABC):
@@ -197,30 +211,83 @@ class Strategy(ABC):
 
         arrays = initial_arrays
 
+        # Get event dispatcher and run_id
+        dispatcher = get_event_dispatcher()
+        run_id = grid.run.run_id
+
         for current_round in range(1, num_rounds + 1):
             log(INFO, "")
             log(INFO, "[ROUND %s/%s]", current_round, num_rounds)
+
+            # Emit round started event
+            dispatcher.emit_event(
+                run_id=run_id,
+                event_type=EventType.EVENT_TYPE_ROUND_STARTED,
+                metadata={"round": str(current_round), "total_rounds": str(num_rounds)},
+            )
 
             # -----------------------------------------------------------------
             # --- TRAINING (CLIENTAPP-SIDE) -----------------------------------
             # -----------------------------------------------------------------
 
             # Call strategy to configure training round
+            train_messages = self.configure_train(
+                current_round,
+                arrays,
+                train_config,
+                grid,
+            )
+
+            dispatcher.emit_event(
+                run_id=run_id,
+                event_type=EventType.EVENT_TYPE_ROUND_CONFIGURE_SENT,
+                metadata={"round": str(current_round)},
+            )
+
             # Send messages and wait for replies
             train_replies = grid.send_and_receive(
-                messages=self.configure_train(
-                    current_round,
-                    arrays,
-                    train_config,
-                    grid,
-                ),
+                messages=train_messages,
                 timeout=timeout,
+            )
+
+            train_replies_list = list(train_replies)
+
+            # Emit individual node fit completed events with metrics
+            for reply in train_replies_list:
+                node_id = reply.metadata.src_node_id
+                metric_record = reply.content.get("metrics") if reply.content else None
+
+                dispatcher.emit_event(
+                    run_id=run_id,
+                    event_type=EventType.EVENT_TYPE_NODE_FIT_COMPLETED,
+                    node_id=node_id,
+                    metadata={
+                        "round": str(current_round),
+                        **_extract_metrics(metric_record),
+                    },
+                )
+
+            # Emit round-level fit received event
+            dispatcher.emit_event(
+                run_id=run_id,
+                event_type=EventType.EVENT_TYPE_ROUND_FIT_RECEIVED,
+                metadata={"round": str(current_round)},
             )
 
             # Aggregate train
             agg_arrays, agg_train_metrics = self.aggregate_train(
                 current_round,
-                train_replies,
+                train_replies_list,
+            )
+
+            # Emit fit aggregated event with metrics
+            dispatcher.emit_event(
+                run_id=run_id,
+                event_type=EventType.EVENT_TYPE_ROUND_FIT_AGGREGATED,
+                metadata={
+                    "round": str(current_round),
+                    **_extract_metrics(agg_train_metrics),
+                },
             )
 
             # Log training metrics and append to history
@@ -236,21 +303,65 @@ class Strategy(ABC):
             # -----------------------------------------------------------------
 
             # Call strategy to configure evaluation round
+            evaluate_messages = self.configure_evaluate(
+                current_round,
+                arrays,
+                evaluate_config,
+                grid,
+            )
+
+            # Emit configure sent event for evaluation
+            dispatcher.emit_event(
+                run_id=run_id,
+                event_type=EventType.EVENT_TYPE_ROUND_CONFIGURE_SENT,
+                metadata={"round": str(current_round)},
+            )
+
             # Send messages and wait for replies
             evaluate_replies = grid.send_and_receive(
-                messages=self.configure_evaluate(
-                    current_round,
-                    arrays,
-                    evaluate_config,
-                    grid,
-                ),
+                messages=evaluate_messages,
                 timeout=timeout,
+            )
+
+            # Convert to list and emit individual node evaluate completion events
+            eval_replies_list = list(evaluate_replies)
+
+            # Emit individual node evaluate completed events with metrics
+            for reply in eval_replies_list:
+                node_id = reply.metadata.src_node_id
+                metric_record = reply.content.get("metrics") if reply.content else None
+
+                dispatcher.emit_event(
+                    run_id=run_id,
+                    event_type=EventType.EVENT_TYPE_NODE_EVALUATE_COMPLETED,
+                    node_id=node_id,
+                    metadata={
+                        "round": str(current_round),
+                        **_extract_metrics(metric_record),
+                    },
+                )
+
+            # Emit round-level evaluate received event
+            dispatcher.emit_event(
+                run_id=run_id,
+                event_type=EventType.EVENT_TYPE_ROUND_EVALUATE_RECEIVED,
+                metadata={"round": str(current_round)},
             )
 
             # Aggregate evaluate
             agg_evaluate_metrics = self.aggregate_evaluate(
                 current_round,
-                evaluate_replies,
+                eval_replies_list,
+            )
+
+            # Emit evaluate aggregated event with metrics
+            dispatcher.emit_event(
+                run_id=run_id,
+                event_type=EventType.EVENT_TYPE_ROUND_EVALUATE_AGGREGATED,
+                metadata={
+                    "round": str(current_round),
+                    **_extract_metrics(agg_evaluate_metrics),
+                },
             )
 
             # Log training metrics and append to history
@@ -269,6 +380,13 @@ class Strategy(ABC):
                 log(INFO, "\t└──> MetricRecord: %s", res)
                 if res is not None:
                     result.evaluate_metrics_serverapp[current_round] = res
+
+            # Emit round completed event
+            dispatcher.emit_event(
+                run_id=run_id,
+                event_type=EventType.EVENT_TYPE_ROUND_COMPLETED,
+                metadata={"round": str(current_round)},
+            )
 
         log(INFO, "")
         log(INFO, "Strategy execution finished in %.2fs", time.time() - t_start)
