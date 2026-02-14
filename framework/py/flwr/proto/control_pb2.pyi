@@ -60,8 +60,10 @@ class StartRunRequest(google.protobuf.message.Message):
     FEDERATION_OPTIONS_FIELD_NUMBER: builtins.int
     APP_SPEC_FIELD_NUMBER: builtins.int
     FEDERATION_FIELD_NUMBER: builtins.int
+    INSTALL_DEPS_FIELD_NUMBER: builtins.int
     app_spec: builtins.str
     federation: builtins.str
+    install_deps: builtins.bool
     @property
     def fab(self) -> flwr.proto.fab_pb2.Fab: ...
     @property
@@ -76,9 +78,10 @@ class StartRunRequest(google.protobuf.message.Message):
         federation_options: flwr.proto.recorddict_pb2.ConfigRecord | None = ...,
         app_spec: builtins.str = ...,
         federation: builtins.str = ...,
+        install_deps: builtins.bool = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["fab", b"fab", "federation_options", b"federation_options"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["app_spec", b"app_spec", "fab", b"fab", "federation", b"federation", "federation_options", b"federation_options", "override_config", b"override_config"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["app_spec", b"app_spec", "fab", b"fab", "federation", b"federation", "federation_options", b"federation_options", "install_deps", b"install_deps", "override_config", b"override_config"]) -> None: ...
 
 global___StartRunRequest = StartRunRequest
 

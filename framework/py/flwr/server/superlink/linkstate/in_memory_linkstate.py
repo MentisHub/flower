@@ -555,6 +555,7 @@ class InMemoryLinkState(LinkState, InMemoryCoreState):  # pylint: disable=R0902,
         federation: str,
         federation_options: ConfigRecord,
         flwr_aid: str | None,
+        install_deps: bool = False,
     ) -> int:
         """Create a new run."""
         # Sample a random int64 as run_id
@@ -583,6 +584,7 @@ class InMemoryLinkState(LinkState, InMemoryCoreState):  # pylint: disable=R0902,
                         bytes_sent=0,
                         bytes_recv=0,
                         clientapp_runtime=0.0,
+                        install_deps=install_deps,
                     ),
                 )
                 self.run_ids[run_id] = run_record

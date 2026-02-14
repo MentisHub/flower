@@ -256,6 +256,7 @@ class LinkState(CoreState):  # pylint: disable=R0904
         federation: str,
         federation_options: ConfigRecord,
         flwr_aid: str | None,
+        install_deps: bool = False,
     ) -> int:
         """Create a new run.
 
@@ -276,6 +277,8 @@ class LinkState(CoreState):  # pylint: disable=R0904
             the simulation runtime.
         flwr_aid : Optional[str]
             Flower Account ID of the creator.
+        install_deps : bool (default: False)
+            If True, install Python dependencies when deploying the FAB.
 
         Returns
         -------

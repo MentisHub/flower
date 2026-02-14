@@ -107,6 +107,7 @@ class TestInMemoryGrid(unittest.TestCase):
             bytes_sent=0,
             bytes_recv=0,
             clientapp_runtime=0.0,
+            install_deps=False,
         )
         state_factory = MagicMock(state=lambda: self.state)
         self.grid = InMemoryGrid(state_factory=state_factory)

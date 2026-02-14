@@ -198,6 +198,7 @@ class ControlServicer(control_pb2_grpc.ControlServicer):
                 federation,
                 federation_options,
                 flwr_aid,
+                install_deps=request.install_deps,
             )
 
             # Initialize node config

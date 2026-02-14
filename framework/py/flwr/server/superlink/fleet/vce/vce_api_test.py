@@ -139,6 +139,7 @@ def register_messages_into_state(
             bytes_sent=0,
             bytes_recv=0,
             clientapp_runtime=0.0,
+            install_deps=False,
         ),
     )
     # Artificially add Messages to state so they can be processed

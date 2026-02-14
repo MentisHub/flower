@@ -99,6 +99,14 @@ def run(
             "logs are not streamed by default.",
         ),
     ] = False,
+    install_deps: Annotated[
+        bool,
+        typer.Option(
+            "--install-deps",
+            help="Install Python dependencies from [project].dependencies "
+            "of the FAB's pyproject.toml.",
+        ),
+    ] = False,
     output_format: Annotated[
         str,
         typer.Option(
@@ -153,12 +161,14 @@ def run(
                 stream,
                 is_json,
                 app_spec,
+                install_deps,
             )
         else:
             _run_without_control_api(
                 app=app,
                 simulation_options=superlink_connection.options,  # type: ignore
                 config_overrides=run_config_overrides,
+                install_deps=install_deps,
             )
 
 
@@ -172,6 +182,7 @@ def _run_with_control_api(
     stream: bool,
     is_json: bool,
     app_spec: str | None,
+    install_deps: bool = False,
 ) -> None:
     channel = None
     is_remote_app = app_spec is not None
@@ -213,6 +224,7 @@ def _run_with_control_api(
             federation=federation,
             federation_options=config_record_to_proto(c_record),
             app_spec=app_spec or "",
+            install_deps=install_deps,
         )
         with flwr_cli_grpc_exc_handler():
             res = stub.StartRun(req)
@@ -253,6 +265,7 @@ def _run_without_control_api(
     app: Path | None,
     simulation_options: SuperLinkSimulationOptions,
     config_overrides: list[str] | None,
+    install_deps: bool = False,
 ) -> None:
 
     num_supernodes = simulation_options.num_supernodes
@@ -276,6 +289,9 @@ def _run_without_control_api(
 
     if config_overrides:
         command.extend(["--run-config", f"{' '.join(config_overrides)}"])
+
+    if install_deps:
+        command.extend(["--install-deps"])
 
     # Run the simulation
     subprocess.run(
