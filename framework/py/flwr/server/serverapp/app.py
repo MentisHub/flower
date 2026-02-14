@@ -210,7 +210,12 @@ def run_serverapp(  # pylint: disable=R0913, R0914, R0915, R0917, W0212
         )
 
         log(DEBUG, "[flwr-serverapp] Start FAB installation.")
-        install_from_fab(fab.content, flwr_dir=flwr_dir_, skip_prompt=True)
+        install_from_fab(
+            fab.content,
+            flwr_dir=flwr_dir_,
+            skip_prompt=True,
+            install_deps=run.install_deps,
+        )
 
         fab_id, fab_version = get_fab_metadata(fab.content)
 

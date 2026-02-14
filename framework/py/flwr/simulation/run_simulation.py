@@ -132,6 +132,16 @@ def run_simulation_from_cli() -> None:
     run = Run.create_empty(run_id)
     run.federation = NOOP_FEDERATION
     run.override_config = override_config
+    run.install_deps = args.install_deps
+
+    # Install dependencies if requested
+    if args.install_deps:
+        from flwr.common.deps import add_deps_to_sys_path, install_dependencies
+
+        dependencies = config.get("project", {}).get("dependencies", [])
+        deps_path = install_dependencies(dependencies)
+        if deps_path is not None:
+            add_deps_to_sys_path(deps_path)
 
     # Create Context
     server_app_context = Context(
@@ -583,6 +593,12 @@ def _parse_args_run_simulation() -> argparse.ArgumentParser:
         "--run-id",
         type=int,
         help="Sets the ID of the run started by the Simulation Engine.",
+    )
+    parser.add_argument(
+        "--install-deps",
+        action="store_true",
+        default=False,
+        help="Install Python dependencies from [project].dependencies.",
     )
 
     return parser

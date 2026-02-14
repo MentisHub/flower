@@ -72,6 +72,7 @@ NODE_ID_NUM_BYTES = 8
 
 # Constants for FAB
 APP_DIR = "apps"
+DEPS_DIR = "deps"
 FAB_CONFIG_FILE = "pyproject.toml"
 FAB_DATE = (2024, 10, 1, 0, 0, 0)
 FAB_HASH_TRUNCATION = 8

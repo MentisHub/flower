@@ -789,6 +789,7 @@ class SqlLinkState(LinkState, SqlCoreState):  # pylint: disable=R0904
         federation: str,
         federation_options: ConfigRecord,
         flwr_aid: str | None,
+        install_deps: bool = False,
     ) -> int:
         """Create a new run."""
         # Sample a random int64 as run_id
@@ -807,11 +808,12 @@ class SqlLinkState(LinkState, SqlCoreState):  # pylint: disable=R0904
                     (run_id, fab_id, fab_version,
                     fab_hash, override_config, federation, federation_options,
                     pending_at, starting_at, running_at, finished_at, sub_status,
-                    details, flwr_aid, bytes_sent, bytes_recv, clientapp_runtime)
+                    details, flwr_aid, bytes_sent, bytes_recv, clientapp_runtime,
+                    install_deps)
                     VALUES (:run_id, :fab_id, :fab_version, :fab_hash, :override_config,
                     :federation, :federation_options, :pending_at, :starting_at,
                     :running_at, :finished_at, :sub_status, :details, :flwr_aid,
-                    :bytes_sent, :bytes_recv, :clientapp_runtime)
+                    :bytes_sent, :bytes_recv, :clientapp_runtime, :install_deps)
                 """
                 override_config_json = json.dumps(override_config)
                 params = {
@@ -832,6 +834,7 @@ class SqlLinkState(LinkState, SqlCoreState):  # pylint: disable=R0904
                     "bytes_sent": 0,
                     "bytes_recv": 0,
                     "clientapp_runtime": 0.0,
+                    "install_deps": 1 if install_deps else 0,
                 }
                 self.query(query, params)
                 return uint64_run_id
@@ -883,6 +886,7 @@ class SqlLinkState(LinkState, SqlCoreState):  # pylint: disable=R0904
                 bytes_sent=row["bytes_sent"],
                 bytes_recv=row["bytes_recv"],
                 clientapp_runtime=row["clientapp_runtime"],
+                install_deps=bool(row["install_deps"]),
             )
         log(ERROR, "`run_id` does not exist.")
         return None

@@ -37,6 +37,7 @@ message Run {
   uint64 bytes_sent = 13;
   uint64 bytes_recv = 14;
   double clientapp_runtime = 15;
+  bool install_deps = 16;
 }
 
 message RunStatus {

@@ -54,6 +54,7 @@ def test_get_details_with_valid_federation() -> None:
         bytes_sent=1024,
         bytes_recv=512,
         clientapp_runtime=1.1,
+        install_deps=False,
     )
     mock_run_2 = Run(
         run_id=run_id_2,
@@ -71,6 +72,7 @@ def test_get_details_with_valid_federation() -> None:
         bytes_sent=2048,
         bytes_recv=1024,
         clientapp_runtime=1.2,
+        install_deps=False,
     )
     mock_node_1 = NodeInfo(
         node_id=1,

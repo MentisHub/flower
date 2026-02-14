@@ -26,8 +26,9 @@ from typing import IO, Annotated
 import click
 import typer
 
-from flwr.common.config import get_flwr_dir, get_metadata_from_config
+from flwr.common.config import get_fab_config, get_flwr_dir, get_metadata_from_config
 from flwr.common.constant import FAB_HASH_TRUNCATION
+from flwr.common.deps import add_deps_to_sys_path, install_dependencies
 
 from .config_utils import load_and_validate
 from .utils import get_sha256_hash
@@ -42,6 +43,13 @@ def install(
         Path | None,
         typer.Option(help="The desired install path."),
     ] = None,
+    install_deps: Annotated[
+        bool,
+        typer.Option(
+            "--install-deps",
+            help="Install Python dependencies from [project].dependencies.",
+        ),
+    ] = False,
 ) -> None:
     """Install a Flower App Bundle.
 
@@ -73,7 +81,7 @@ def install(
         raise click.ClickException(f"The source {source} is not a `.fab` file.")
 
     try:
-        install_from_fab(source, flwr_dir)
+        install_from_fab(source, flwr_dir, install_deps=install_deps)
     except ValueError as e:
         raise click.ClickException(str(e)) from None
 
@@ -82,6 +90,7 @@ def install_from_fab(
     fab_file: Path | bytes,
     flwr_dir: Path | None,
     skip_prompt: bool = False,
+    install_deps: bool = False,
 ) -> Path:
     """Install from a FAB file after extracting and validating.
 
@@ -93,6 +102,9 @@ def install_from_fab(
         Target installation directory, or None to use default.
     skip_prompt : bool
         If True, skip confirmation prompts. Default is False.
+    install_deps : bool
+        If True, install Python dependencies from ``[project].dependencies``.
+        Default is False.
 
     Returns
     -------
@@ -137,6 +149,9 @@ def install_from_fab(
             installed_path = validate_and_install(
                 tmpdir_path, fab_hash, fab_name, flwr_dir, skip_prompt
             )
+
+    if install_deps:
+        _install_deps_from_fab(fab_file, flwr_dir)
 
     return installed_path
 
@@ -217,6 +232,28 @@ def validate_and_install(
     )
 
     return install_dir
+
+
+def _install_deps_from_fab(
+    fab_file: Path | bytes,
+    flwr_dir: Path | None,
+) -> None:
+    """Extract dependencies from a FAB and install them.
+
+    Parameters
+    ----------
+    fab_file : Path | bytes
+        Either a path to the FAB file or the FAB file content as bytes.
+    flwr_dir : Path | None
+        Flower directory for storing deps, or None to use default.
+    """
+    fab_bytes = fab_file if isinstance(fab_file, bytes) else fab_file.read_bytes()
+    config = get_fab_config(fab_bytes)
+    dependencies = config.get("project", {}).get("dependencies", [])
+    flwr_dir_resolved = get_flwr_dir() if flwr_dir is None else flwr_dir
+    deps_path = install_dependencies(dependencies, flwr_dir_resolved)
+    if deps_path is not None:
+        add_deps_to_sys_path(deps_path)
 
 
 def _verify_hashes(list_content: str, tmpdir: Path) -> bool:

@@ -117,7 +117,12 @@ def run_clientapp(  # pylint: disable=R0913, R0914, R0917
             # Install FAB, if provided
             if fab:
                 log(DEBUG, "[flwr-clientapp] Start FAB installation.")
-                install_from_fab(fab.content, flwr_dir=flwr_dir_, skip_prompt=True)
+                install_from_fab(
+                    fab.content,
+                    flwr_dir=flwr_dir_,
+                    skip_prompt=True,
+                    install_deps=run.install_deps,
+                )
 
             load_client_app_fn = get_load_client_app_fn(
                 default_app_ref="",

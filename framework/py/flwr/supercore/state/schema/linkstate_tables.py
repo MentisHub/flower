@@ -83,6 +83,7 @@ def create_linkstate_metadata() -> MetaData:
         Column("bytes_sent", Integer, server_default="0"),
         Column("bytes_recv", Integer, server_default="0"),
         Column("clientapp_runtime", Float, server_default="0.0"),
+        Column("install_deps", Integer, server_default="0"),
     )
 
     # --------------------------------------------------------------------------
