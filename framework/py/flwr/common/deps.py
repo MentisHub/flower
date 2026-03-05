@@ -22,7 +22,7 @@ import sys
 from logging import DEBUG, INFO, WARNING
 from pathlib import Path
 
-from flwr.common.config import get_flwr_dir
+from flwr.supercore.utils import get_flwr_home as get_flwr_dir
 from flwr.common.constant import DEPS_DIR
 from flwr.common.logger import log
 

@@ -30,7 +30,7 @@ from flwr.common.constant import (
     Status,
 )
 from flwr.common.events import get_event_dispatcher
-from flwr.common.inflatable import (
+from flwr.supercore.inflatable.inflatable_object import (
     get_all_nested_objects,
     get_object_id,
     get_object_tree,

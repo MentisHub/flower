@@ -26,9 +26,10 @@ from typing import IO, Annotated
 import click
 import typer
 
-from flwr.common.config import get_fab_config, get_flwr_dir, get_metadata_from_config
-from flwr.common.constant import FAB_HASH_TRUNCATION
+from flwr.common.config import get_fab_config, get_metadata_from_config
+from flwr.common.constant import APP_DIR, FAB_HASH_TRUNCATION
 from flwr.common.deps import add_deps_to_sys_path, install_dependencies
+from flwr.supercore.utils import get_flwr_home
 
 from .config_utils import load_and_validate
 from .utils import get_sha256_hash
@@ -145,7 +146,7 @@ def install_from_fab(
             )
 
     if install_deps:
-        _install_deps_from_fab(fab_file, flwr_dir)
+        _install_deps_from_fab(fab_file, install_dir)
 
     return installed_path
 
@@ -245,7 +246,7 @@ def _install_deps_from_fab(
     fab_bytes = fab_file if isinstance(fab_file, bytes) else fab_file.read_bytes()
     config = get_fab_config(fab_bytes)
     dependencies = config.get("project", {}).get("dependencies", [])
-    flwr_dir_resolved = get_flwr_dir() if flwr_dir is None else flwr_dir
+    flwr_dir_resolved = get_flwr_home() if flwr_dir is None else flwr_dir
     deps_path = install_dependencies(dependencies, flwr_dir_resolved)
     if deps_path is not None:
         add_deps_to_sys_path(deps_path)

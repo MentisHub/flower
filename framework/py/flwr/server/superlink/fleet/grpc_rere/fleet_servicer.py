@@ -23,7 +23,6 @@ from google.protobuf.json_format import MessageToDict
 
 from flwr.common.constant import PUBLIC_KEY_ALREADY_IN_USE_MESSAGE
 from flwr.common.events import get_event_dispatcher
-from flwr.common.inflatable import UnexpectedObjectContentError
 from flwr.common.logger import log
 from flwr.common.typing import InvalidRunStatusException
 from flwr.proto.event_pb2 import EventType, PushEventsRequest, PushEventsResponse
