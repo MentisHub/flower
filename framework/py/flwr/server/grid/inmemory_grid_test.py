@@ -91,7 +91,7 @@ class TestInMemoryGrid(unittest.TestCase):
             generate_rand_int_from_bytes(NODE_ID_NUM_BYTES)
             for _ in range(self.num_nodes)
         ]
-        self.state.get_run.return_value = Run(
+        run = Run(
             run_id=61016,
             fab_id="mock/mock",
             fab_version="v1.0.0",
@@ -109,6 +109,7 @@ class TestInMemoryGrid(unittest.TestCase):
             clientapp_runtime=0.0,
             install_deps=False,
         )
+        self.state.get_run_info.return_value = [run]
         state_factory = MagicMock(state=lambda: self.state)
         self.grid = InMemoryGrid(state_factory=state_factory)
         self.grid.set_run(run_id=61016)

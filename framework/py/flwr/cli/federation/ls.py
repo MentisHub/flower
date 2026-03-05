@@ -34,7 +34,7 @@ from flwr.proto.control_pb2 import (  # pylint: disable=E0611
     ShowFederationResponse,
 )
 from flwr.proto.control_pb2_grpc import ControlStub
-from flwr.proto.federation_pb2 import Federation  # pylint: disable=E0611
+from flwr.proto.federation_pb2 import Federation, Member  # pylint: disable=E0611
 from flwr.proto.node_pb2 import NodeInfo  # pylint: disable=E0611
 from flwr.supercore.utils import humanize_duration
 
@@ -69,6 +69,13 @@ def ls(  # pylint: disable=R0914, R0913, R0917, R0912
             help="Name of the federation to display",
         ),
     ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            help="Show additional details, including archived federations.",
+        ),
+    ] = False,
 ) -> None:
     """List available federations or details of a specific federation (alias: ls)."""
     with cli_output_handler(output_format=output_format) as is_json:
@@ -85,14 +92,21 @@ def ls(  # pylint: disable=R0914, R0913, R0917, R0912
 
             if federation:
                 # Show specific federation details
-                typer.echo(f"📄 Showing '{federation}' federation ...")
-                members, nodes, runs = _show_federation(stub, federation)
-
+                members, nodes, runs, archived = _show_federation(stub, federation)
+                archived_str = (
+                    " [bold yellow]\\[ARCHIVED][/bold yellow]" if archived else ""
+                )
+                Console().print(
+                    f"📄 Showing '{federation}' federation{archived_str} ...\n"
+                )
                 if is_json:
                     print_json_to_stdout(
-                        _to_json(members=members, nodes=nodes, runs=runs)
+                        _to_json(
+                            members=members, nodes=nodes, runs=runs, archived=archived
+                        )
                     )
                 else:
+
                     Console().print(_to_members_table(members))
                     Console().print(_to_nodes_table(nodes))
                     Console().print(_to_runs_table(runs))
@@ -101,10 +115,15 @@ def ls(  # pylint: disable=R0914, R0913, R0917, R0912
                 typer.echo("📄 Listing federations...")
                 federations = _list_federations(stub)
 
+                active = [f for f in federations if not f.archived]
+                archived_feds = [f for f in federations if f.archived]
+
                 if is_json:
                     print_json_to_stdout(_to_json(federations=federations))
                 else:
-                    Console().print(_to_table(federations))
+                    # If verbose, show archived federations after active ones
+                    shown = active + archived_feds if verbose else active
+                    Console().print(_to_table(shown))
         finally:
             if channel:
                 channel.close()
@@ -129,32 +148,51 @@ def _to_table(federations: list[Federation]) -> Table:
     table.add_column(
         Text("Description", justify="center"), style="bright_black", no_wrap=True
     )
+    table.add_column(
+        Text("Status", justify="center"), style="bright_black", no_wrap=True
+    )
 
     for federation in federations:
-        table.add_row(federation.name, federation.description)
+        if federation.archived:
+            style = "dim"
+            status = "archived"
+        else:
+            style = ""
+            status = "[green]active[/green]"
+        table.add_row(federation.name, federation.description, status, style=style)
 
     return table
 
 
 def _to_json(
     federations: list[Federation] | None = None,
-    members: list[str] | None = None,
+    members: list[Member] | None = None,
     nodes: list[NodeInfo] | None = None,
     runs: list[RunRow] | None = None,
-) -> list[dict[str, str]] | list[list[dict[str, Any]]]:
+    archived: bool | None = None,
+) -> dict[str, Any]:
     """Format the provided federations list to JSON serializable format."""
     if federations is not None:
-        return [{"name": federation.name} for federation in federations]
+        return {
+            "federations": [
+                {
+                    "name": federation.name,
+                    "description": federation.description,
+                    "archived": federation.archived,
+                }
+                for federation in federations
+            ]
+        }
 
     if members is None or nodes is None or runs is None:
-        return []
+        return {"federation": {}}
 
     members_list: list[dict[str, Any]] = []
     nodes_list: list[dict[str, Any]] = []
     runs_list: list[dict[str, Any]] = []
 
     for member in members:
-        members_list.append({"member_id": member, "role": "Member"})
+        members_list.append({"member_id": member.account.name, "role": member.role})
 
     for node in nodes:
         nodes_list.append(
@@ -175,12 +213,19 @@ def _to_json(
             }
         )
 
-    return [members_list, nodes_list, runs_list]
+    return {
+        "federation": {
+            "members": members_list,
+            "nodes": nodes_list,
+            "runs": runs_list,
+            "archived": archived,
+        }
+    }
 
 
 def _show_federation(
     stub: ControlStub, federation: str
-) -> tuple[list[str], list[NodeInfo], list[RunRow]]:
+) -> tuple[list[Member], list[NodeInfo], list[RunRow], bool]:
     """Show federation details.
 
     Parameters
@@ -192,8 +237,8 @@ def _show_federation(
 
     Returns
     -------
-    tuple[list[str], list[NodeInfo], list[RunRow]]
-        A tuple containing (account_names, nodes, runs).
+    tuple[list[Member], list[NodeInfo], list[RunRow]]
+        A tuple containing (members, nodes, runs).
     """
     with flwr_cli_grpc_exc_handler():
         res: ShowFederationResponse = stub.ShowFederation(
@@ -205,19 +250,20 @@ def _show_federation(
     formatted_runs = format_runs(runs, res.now)
 
     return (
-        [account.name for account in fed_proto.accounts],
+        list(fed_proto.members),
         list(fed_proto.nodes),
         formatted_runs,
+        fed_proto.archived,
     )
 
 
-def _to_members_table(account_names: list[str]) -> Table:
+def _to_members_table(members: list[Member]) -> Table:
     """Format the provided list of federation members as a rich Table.
 
     Parameters
     ----------
-    account_names : list[str]
-        List of member account names.
+    members : list[Member]
+        List of Member proto objects.
 
     Returns
     -------
@@ -231,8 +277,8 @@ def _to_members_table(account_names: list[str]) -> Table:
     )
     table.add_column(Text("Role", justify="center"), style="bright_black", no_wrap=True)
 
-    for account_name in account_names:
-        table.add_row(account_name, "Member")
+    for member in members:
+        table.add_row(member.account.name, member.role)
 
     return table
 

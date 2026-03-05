@@ -16,8 +16,6 @@
 
 
 import hashlib
-import json
-import subprocess
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -32,7 +30,7 @@ from flwr.cli.flower_config import (
     _serialize_simulation_options,
     read_superlink_connection,
 )
-from flwr.cli.typing import SuperLinkConnection, SuperLinkSimulationOptions
+from flwr.cli.typing import SuperLinkConnection
 from flwr.common.config import (
     flatten_dict,
     get_metadata_from_config,
@@ -259,6 +257,7 @@ def _run_with_control_api(
     finally:
         if channel:
             channel.close()
+
 
 
 def _run_without_control_api(

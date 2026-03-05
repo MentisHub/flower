@@ -28,7 +28,6 @@ from flwr.cli.install import install_from_fab
 from flwr.cli.utils import get_sha256_hash
 from flwr.common.args import add_args_flwr_app_common
 from flwr.common.config import (
-    get_flwr_dir,
     get_fused_config_from_dir,
     get_project_config,
     get_project_dir,
@@ -94,7 +93,6 @@ def flwr_serverapp() -> None:
             plugin_class=ServerAppExecPlugin,
             stub_class=ServerAppIoStub,
             appio_api_address=args.serverappio_api_address,
-            flwr_dir=args.flwr_dir,
             parent_pid=args.parent_pid,
             warn_run_once=args.run_once,
         )
@@ -111,7 +109,6 @@ def flwr_serverapp() -> None:
         serverappio_api_address=args.serverappio_api_address,
         log_queue=log_queue,
         token=args.token,
-        flwr_dir=args.flwr_dir,
         certificates=None,
         parent_pid=args.parent_pid,
     )
@@ -124,7 +121,6 @@ def run_serverapp(  # pylint: disable=R0913, R0914, R0915, R0917, W0212
     serverappio_api_address: str,
     log_queue: Queue[str | None],
     token: str,
-    flwr_dir: str | None = None,
     certificates: bytes | None = None,
     parent_pid: int | None = None,
 ) -> None:
@@ -134,7 +130,6 @@ def run_serverapp(  # pylint: disable=R0913, R0914, R0915, R0917, W0212
         start_parent_process_monitor(parent_pid)
 
     # Initialize variables for exit handler
-    flwr_dir_ = get_flwr_dir(flwr_dir)
     log_uploader = None
     event_uploader = None
     event_queue = None
@@ -232,7 +227,7 @@ def run_serverapp(  # pylint: disable=R0913, R0914, R0915, R0917, W0212
 
         fab_id, fab_version = get_fab_metadata(fab.content)
 
-        app_path = str(get_project_dir(fab_id, fab_version, fab.hash_str, flwr_dir_))
+        app_path = str(get_project_dir(fab_id, fab_version, fab.hash_str))
         config = get_project_config(app_path)
 
         # Obtain server app reference and the run config

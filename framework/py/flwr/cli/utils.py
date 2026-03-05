@@ -54,12 +54,15 @@ from flwr.common.grpc import (
     on_channel_state_change,
 )
 from flwr.common.logger import print_json_error, redirect_output, restore_output
+from flwr.proto.control_pb2_grpc import ControlStub  # pylint: disable=E0611
 from flwr.supercore.credential_store import get_credential_store
 
 from .auth_plugin import CliAuthPlugin, get_cli_plugin_class
 from .cli_account_auth_interceptor import CliAccountAuthInterceptor
 from .config_utils import load_certificate_in_connection
 from .constant import AUTHN_TYPE_STORE_KEY
+from .flower_config import read_superlink_connection
+from .local_superlink import ensure_local_superlink
 
 
 def print_json_to_stdout(data: str | Any) -> None:
@@ -287,17 +290,24 @@ def load_cli_auth_plugin_from_connection(
         ) from None
 
 
-def require_superlink_address(connection: SuperLinkConnection) -> str:
-    """Return the SuperLink address or exit if it is not configured."""
-    if connection.address is None:
-        cmd = click.get_current_context().command.name
-        raise click.ClickException(
-            f"`flwr {cmd}` currently works with a SuperLink. Ensure that the "
-            "correct SuperLink (Control API) address is provided SuperLink connection "
-            "you are using. Check your Flower configuration file. You may use `flwr "
-            "config list` to see its location in the file system."
-        )
-    return connection.address
+def get_executed_command() -> str:
+    """Get the full command path from the current Click context.
+
+    Traverses up the Click context hierarchy to build the complete command path.
+
+    Returns
+    -------
+    str
+        The full command path including the "flwr" prefix.
+    """
+    ctx: click.Context | None = click.get_current_context()
+    cmd_parts = []
+    while ctx is not None:
+        if ctx.info_name:
+            cmd_parts.append(ctx.info_name)
+        ctx = ctx.parent
+    cmd_parts.reverse()
+    return " ".join(cmd_parts)
 
 
 def init_channel_from_connection(
@@ -317,7 +327,8 @@ def init_channel_from_connection(
     grpc.Channel
         Configured gRPC channel with authentication interceptors.
     """
-    address = require_superlink_address(connection)
+    connection = ensure_local_superlink(connection)
+    address = cast(str, connection.address)
 
     root_certificates_bytes = load_certificate_in_connection(connection)
 
@@ -337,6 +348,34 @@ def init_channel_from_connection(
     )
     channel.subscribe(on_channel_state_change)
     return channel
+
+
+@contextmanager  # docsig: disable=SIG503
+def cli_output_control_stub(
+    superlink: str | None,
+    output_format: str = CliOutputFormat.DEFAULT,
+) -> Iterator[tuple[ControlStub, bool]]:
+    """Manage CLI output handling and Control API stub lifecycle.
+
+    Parameters
+    ----------
+    superlink : str | None
+        Name of the SuperLink connection.
+    output_format : str
+        Output format for CLI rendering.
+
+    Yields
+    ------
+    tuple[ControlStub, bool]
+        A tuple of (ControlStub, is_json), where `is_json` indicates JSON output.
+    """
+    with cli_output_handler(output_format=output_format) as is_json:
+        superlink_connection = read_superlink_connection(superlink)
+        channel = init_channel_from_connection(superlink_connection)
+        try:
+            yield ControlStub(channel), is_json
+        finally:
+            channel.close()
 
 
 @contextmanager

@@ -60,6 +60,7 @@ from flwr.server.superlink.fleet.message_handler import message_handler
 from flwr.server.superlink.linkstate import LinkStateFactory
 from flwr.server.superlink.utils import abort_grpc_context
 from flwr.supercore.ffs import FfsFactory
+from flwr.supercore.inflatable.inflatable_object import UnexpectedObjectContentError
 from flwr.supercore.object_store import ObjectStoreFactory
 
 
