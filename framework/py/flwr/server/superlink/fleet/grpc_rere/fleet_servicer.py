@@ -131,6 +131,12 @@ class FleetServicer(fleet_pb2_grpc.FleetServicer):
                 state=self.state_factory.state(),
             )
             log(INFO, "[Fleet.ActivateNode] Activated node_id=%s", response.node_id)
+
+            self.event_dispatcher.emit_event(
+                node_id=response.node_id,
+                event_type=EventType.NODE_CONNECTED
+            )
+
             return response
         except message_handler.InvalidHeartbeatIntervalError:
             # Heartbeat interval is invalid
