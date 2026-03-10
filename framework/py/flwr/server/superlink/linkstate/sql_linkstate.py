@@ -233,10 +233,16 @@ class SqlLinkState(LinkState, SqlCoreState):  # pylint: disable=R0904
                 dst_node_id = int64_to_uint64(message_row["dst_node_id"])
 
                 # Filter nodes to check if they're in the federation
+                # (SUPERLINK_NODE_ID is always trusted and excluded from check)
+                nodes_to_check = {
+                    nid
+                    for nid in {src_node_id, dst_node_id}
+                    if nid != SUPERLINK_NODE_ID
+                }
                 filtered = self.federation_manager.filter_nodes(
-                    {src_node_id, dst_node_id}, federation
+                    nodes_to_check, federation
                 )
-                if len(filtered) != 2:  # Not both nodes are in the federation
+                if len(filtered) != len(nodes_to_check):  # Not all nodes are in the federation
                     invalid_msg_ids.add(msg_id)
 
             # Delete all invalid messages

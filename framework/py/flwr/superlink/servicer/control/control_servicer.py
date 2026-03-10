@@ -666,7 +666,13 @@ class ControlServicer(control_pb2_grpc.ControlServicer):
         flwr_aid = _check_flwr_aid_exists(account_info.flwr_aid, context)
 
         # Construct federation name
-        federation_name = f"@{account_info.account_name}/{request.federation_name}"
+        federation_name = request.federation_name
+
+        # Register account name ↔ flwr_aid mapping if manager supports it
+        if hasattr(state.federation_manager, "register_account"):
+            state.federation_manager.register_account(
+                flwr_aid, cast(str, account_info.account_name)
+            )
 
         # Create federation
         try:
@@ -801,35 +807,224 @@ class ControlServicer(control_pb2_grpc.ControlServicer):
     ) -> CreateInvitationResponse:
         """Create an invitation."""
         log(INFO, "ControlServicer.CreateInvitation")
-        raise NotImplementedError("CreateInvitation is not implemented.")
+
+        if not request.federation_name:
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                FEDERATION_NOT_SPECIFIED_MESSAGE,
+            )
+        if not request.invitee_account_name:
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                "Invitee account name must be specified.",
+            )
+
+        state = self.linkstate_factory.state()
+        account_info = get_current_account_info()
+        flwr_aid = _check_flwr_aid_exists(account_info.flwr_aid, context)
+
+        # Resolve invitee account name → flwr_aid via registered nodes;
+        # fall back to treating the account name as the flwr_aid.
+        invitee_flwr_aid = _resolve_flwr_aid(
+            state, request.invitee_account_name, state.federation_manager
+        )
+        if invitee_flwr_aid is None:
+            context.abort(
+                grpc.StatusCode.NOT_FOUND,
+                f"Account '{request.invitee_account_name}' not found.",
+            )
+
+        try:
+            state.federation_manager.create_invitation(
+                flwr_aid=flwr_aid,
+                federation=request.federation_name,
+                invitee_flwr_aid=cast(str, invitee_flwr_aid),
+            )
+        except NotImplementedError as e:
+            log(ERROR, "Could not create invitation: %s", str(e))
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                SUPERLINK_DOES_NOT_SUPPORT_FED_MANAGEMENT_MESSAGE,
+            )
+        except ValueError as e:
+            log(ERROR, "Could not create invitation: %s", str(e))
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
+
+        return CreateInvitationResponse()
 
     def ListInvitations(
         self, request: ListInvitationsRequest, context: grpc.ServicerContext
     ) -> ListInvitationsResponse:
         """List invitations."""
         log(INFO, "ControlServicer.ListInvitations")
-        raise NotImplementedError("ListInvitations is not implemented.")
+
+        state = self.linkstate_factory.state()
+        flwr_aid = _check_flwr_aid_exists(
+            get_current_account_info().flwr_aid, context
+        )
+
+        try:
+            created, received = state.federation_manager.list_invitations(
+                flwr_aid=flwr_aid
+            )
+        except NotImplementedError as e:
+            log(ERROR, "Could not list invitations: %s", str(e))
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                SUPERLINK_DOES_NOT_SUPPORT_FED_MANAGEMENT_MESSAGE,
+            )
+
+        return ListInvitationsResponse(
+            created_invitations=created,
+            received_invitations=received,
+        )
 
     def AcceptInvitation(
         self, request: AcceptInvitationRequest, context: grpc.ServicerContext
     ) -> AcceptInvitationResponse:
         """Accept an invitation."""
         log(INFO, "ControlServicer.AcceptInvitation")
-        raise NotImplementedError("AcceptInvitation is not implemented.")
+
+        if not request.federation_name:
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                FEDERATION_NOT_SPECIFIED_MESSAGE,
+            )
+
+        state = self.linkstate_factory.state()
+        account_info = get_current_account_info()
+        flwr_aid = _check_flwr_aid_exists(account_info.flwr_aid, context)
+
+        # Register account mapping so invitation protos show correct name
+        if hasattr(state.federation_manager, "register_account"):
+            state.federation_manager.register_account(
+                flwr_aid, cast(str, account_info.account_name)
+            )
+
+        try:
+            state.federation_manager.accept_invitation(
+                flwr_aid=flwr_aid,
+                federation=request.federation_name,
+            )
+        except NotImplementedError as e:
+            log(ERROR, "Could not accept invitation: %s", str(e))
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                SUPERLINK_DOES_NOT_SUPPORT_FED_MANAGEMENT_MESSAGE,
+            )
+        except ValueError as e:
+            log(ERROR, "Could not accept invitation: %s", str(e))
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
+
+        return AcceptInvitationResponse()
 
     def RejectInvitation(
         self, request: RejectInvitationRequest, context: grpc.ServicerContext
     ) -> RejectInvitationResponse:
         """Reject an invitation."""
         log(INFO, "ControlServicer.RejectInvitation")
-        raise NotImplementedError("RejectInvitation is not implemented.")
+
+        if not request.federation_name:
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                FEDERATION_NOT_SPECIFIED_MESSAGE,
+            )
+
+        state = self.linkstate_factory.state()
+        flwr_aid = _check_flwr_aid_exists(
+            get_current_account_info().flwr_aid, context
+        )
+
+        try:
+            state.federation_manager.reject_invitation(
+                flwr_aid=flwr_aid,
+                federation=request.federation_name,
+            )
+        except NotImplementedError as e:
+            log(ERROR, "Could not reject invitation: %s", str(e))
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                SUPERLINK_DOES_NOT_SUPPORT_FED_MANAGEMENT_MESSAGE,
+            )
+        except ValueError as e:
+            log(ERROR, "Could not reject invitation: %s", str(e))
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
+
+        return RejectInvitationResponse()
 
     def RevokeInvitation(
         self, request: RevokeInvitationRequest, context: grpc.ServicerContext
     ) -> RevokeInvitationResponse:
         """Revoke an invitation."""
         log(INFO, "ControlServicer.RevokeInvitation")
-        raise NotImplementedError("RevokeInvitation is not implemented.")
+
+        if not request.federation_name:
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                FEDERATION_NOT_SPECIFIED_MESSAGE,
+            )
+        if not request.invitee_account_name:
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                "Invitee account name must be specified.",
+            )
+
+        state = self.linkstate_factory.state()
+        flwr_aid = _check_flwr_aid_exists(
+            get_current_account_info().flwr_aid, context
+        )
+
+        invitee_flwr_aid = _resolve_flwr_aid(
+            state, request.invitee_account_name, state.federation_manager
+        )
+        if invitee_flwr_aid is None:
+            context.abort(
+                grpc.StatusCode.NOT_FOUND,
+                f"Account '{request.invitee_account_name}' not found.",
+            )
+
+        try:
+            state.federation_manager.revoke_invitation(
+                flwr_aid=flwr_aid,
+                federation=request.federation_name,
+                invitee_flwr_aid=cast(str, invitee_flwr_aid),
+            )
+        except NotImplementedError as e:
+            log(ERROR, "Could not revoke invitation: %s", str(e))
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                SUPERLINK_DOES_NOT_SUPPORT_FED_MANAGEMENT_MESSAGE,
+            )
+        except ValueError as e:
+            log(ERROR, "Could not revoke invitation: %s", str(e))
+            context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(e))
+
+        return RevokeInvitationResponse()
+
+
+def _resolve_flwr_aid(
+    state: LinkState,
+    account_name: str,
+    federation_manager: Any,
+) -> str | None:
+    """Resolve an account name to a flwr_aid.
+
+    First checks the federation manager's internal account registry (if it
+    exposes ``resolve_flwr_aid``), then falls back to scanning registered
+    SuperNode owner names in the link state.
+    """
+    # Fast path: manager has its own registry (e.g. InMemoryFederationManager)
+    if hasattr(federation_manager, "resolve_flwr_aid"):
+        result = federation_manager.resolve_flwr_aid(account_name)
+        if result is not None:
+            return result
+
+    # Slow path: scan nodes
+    for node in state.get_node_info():
+        if node.owner_name == account_name:
+            return node.owner_aid
+
+    return None
 
 
 def _validate_federation_and_node_in_request(

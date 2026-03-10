@@ -163,14 +163,19 @@ class InMemoryLinkState(LinkState, InMemoryCoreState):  # pylint: disable=R0902,
                     continue
 
                 # Check if the destination node and the source node are still in the
-                # same federation
+                # same federation (SUPERLINK_NODE_ID is always trusted and excluded)
                 src_node_id = message.metadata.src_node_id
                 dst_node_id = message.metadata.dst_node_id
+                nodes_to_check = {
+                    nid
+                    for nid in {src_node_id, dst_node_id}
+                    if nid != SUPERLINK_NODE_ID
+                }
                 filtered = self.federation_manager.filter_nodes(
-                    {src_node_id, dst_node_id},
+                    nodes_to_check,
                     self.run_ids[message.metadata.run_id].run.federation,
                 )
-                if len(filtered) != 2:  # Not both nodes are in the federation
+                if len(filtered) != len(nodes_to_check):  # Not all nodes are in the federation
                     invalid_msg_ids.add(msg_id)
 
             # Delete all invalid messages

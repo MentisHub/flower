@@ -16,9 +16,11 @@
 
 
 from .federation_manager import FederationManager
+from .in_memory_federation_manager import InMemoryFederationManager
 from .noop_federation_manager import NoOpFederationManager
 
 __all__ = [
     "FederationManager",
+    "InMemoryFederationManager",
     "NoOpFederationManager",
 ]

@@ -202,6 +202,13 @@ def run_serverapp(  # pylint: disable=R0913, R0914, R0915, R0917, W0212
 
         grid.set_run(run.run_id)
 
+        # Start heartbeat sender immediately to prevent SuperLink from timing out
+        # during FAB installation and dependency installation (which can take >30s)
+        heartbeat_sender = HeartbeatSender(
+            make_app_heartbeat_fn_grpc(grid._stub, token)
+        )
+        heartbeat_sender.start()
+
         # Start log uploader for this run
         log_uploader = start_log_uploader(
             log_queue=log_queue,
@@ -220,7 +227,7 @@ def run_serverapp(  # pylint: disable=R0913, R0914, R0915, R0917, W0212
         log(DEBUG, "[flwr-serverapp] Start FAB installation.")
         install_from_fab(
             fab.content,
-            flwr_dir=flwr_dir_,
+            install_dir=None,
             skip_prompt=True,
             install_deps=run.install_deps,
         )
@@ -250,12 +257,6 @@ def run_serverapp(  # pylint: disable=R0913, R0914, R0915, R0917, W0212
             EventType.FLWR_SERVERAPP_RUN_ENTER,
             event_details={"run-id-hash": hash_run_id},
         )
-
-        # Set up heartbeat sender
-        heartbeat_sender = HeartbeatSender(
-            make_app_heartbeat_fn_grpc(grid._stub, token)
-        )
-        heartbeat_sender.start()
 
         # Load and run the ServerApp with the Grid
         updated_context = run_(

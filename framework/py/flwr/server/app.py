@@ -73,7 +73,11 @@ from flwr.superlink.auth_plugin import (
     NoOpControlAuthnPlugin,
     NoOpControlAuthzPlugin,
 )
-from flwr.superlink.federation import FederationManager, NoOpFederationManager
+from flwr.superlink.federation import (
+    FederationManager,
+    InMemoryFederationManager,
+    NoOpFederationManager,
+)
 from flwr.superlink.servicer.control import run_control_api_grpc
 
 from .superlink.fleet.grpc_adapter.grpc_adapter_servicer import GrpcAdapterServicer
@@ -131,7 +135,7 @@ except ImportError:
 
     def get_ee_federation_manager() -> FederationManager:
         """Return the EE FederationManager."""
-        raise NotImplementedError("No federation manager is currently supported.")
+        return InMemoryFederationManager()
 
 
 def get_control_authn_plugins() -> dict[str, type[ControlAuthnPlugin]]:
