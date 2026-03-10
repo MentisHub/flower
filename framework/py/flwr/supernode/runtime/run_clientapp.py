@@ -130,7 +130,6 @@ def run_clientapp(  # pylint: disable=R0913, R0914, R0917
                 log(DEBUG, "[flwr-clientapp] Start FAB installation.")
                 install_from_fab(
                     fab.content,
-                    flwr_dir=flwr_dir_,
                     skip_prompt=True,
                     install_deps=run.install_deps,
                 )
