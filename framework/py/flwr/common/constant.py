@@ -66,9 +66,11 @@ HEARTBEAT_INTERVAL_INF = 1e300  # Large value, disabling heartbeats
 HEARTBEAT_PATIENCE = 2
 RUN_FAILURE_DETAILS_NO_HEARTBEAT = "No heartbeat received from the run."
 
-# IDs
-RUN_ID_NUM_BYTES = 8
-NODE_ID_NUM_BYTES = 8
+# IDs — 7 bytes (56-bit) ensures all generated IDs fit within signed int64
+# range (< 2^63), preventing ValueError in Python protobuf upb (5.x) which
+# uses int64_t internally for uint64 fields and rejects values > 2^63-1.
+RUN_ID_NUM_BYTES = 7
+NODE_ID_NUM_BYTES = 7
 
 # Constants for FAB
 APP_DIR = "apps"
